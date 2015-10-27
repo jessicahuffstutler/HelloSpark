@@ -1,41 +1,64 @@
 package com.theironyard;
 
 import spark.ModelAndView;
+import spark.Session;
 import spark.Spark;
 import spark.template.mustache.MustacheTemplateEngine;
 
-import java.util.ArrayList;
 import java.util.HashMap;
 
 public class Main {
 
     public static void main(String[] args) {
-        ArrayList<User> users = new ArrayList(); //this allows us to store multiple user accounts
+        HashMap<String, User> users = new HashMap();
 
 	// static HTML file
-        Spark.staticFileLocation("/public");
         Spark.init();
         Spark.post(
                 "/create-account",
                 ((request, response) -> {
-                    User user = new User();
-                    user.name = request.queryParams("username"); //sets the name
-                    user.password = request.queryParams("password"); //creating user object
-                    users.add(user);
+                    String name = request.queryParams("username");
+                    String password = request.queryParams("password");
+
+                    Session session = request.session();
+                    session.attribute("username", name);
+
+                    if (users.get(name) == null) {
+                        User user = new User();
+                        user.name = name;
+                        user.password = password;
+                        users.put(name, user);
+                    }
                     response.redirect("/");
                     return "";
                 })
         );
 
-        Spark.get (
-                "/accounts",
+        Spark.get(
+                "/", //name of the route
                 ((request, response) -> {
+                    Session session = request.session();
+                    String name = session.attribute("username");
+                    if (name != null) {
+                        HashMap m = new HashMap();
+                        m.put("count", users.size()); //tell it what to inject
+                        m.put("accounts", users.values()); //tell it what to inject
+                        return new ModelAndView(m, "logged-in.html");
+                    }
                     HashMap m = new HashMap();
-                    m.put("count", users.size()); //tell it what to inject
-                    m.put("accounts", users); //tell it what to inject
-                    return new ModelAndView(m, "accounts.html");
+                    return new ModelAndView(m, "not-logged-in.html");
                 }),
                 new MustacheTemplateEngine()
+        );
+
+        Spark.post(
+                "/logout",
+                ((request, response) -> {
+                    Session session = request.session();
+                    session.invalidate();
+                    response.redirect("/");
+                    return "";
+                })
         );
     }
 }
